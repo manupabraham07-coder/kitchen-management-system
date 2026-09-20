@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kitchen Management System</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f3f6fa;color:#172033}
+header{background:#17365d;color:#fff;padding:18px 16px;text-align:center;font-size:23px;font-weight:700}
+.wrap{max-width:900px;margin:22px auto;padding:0 14px}.card{background:#fff;border-radius:18px;padding:20px;margin-bottom:16px;box-shadow:0 4px 18px #0001}
+h1,h2{margin-top:0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+label{font-weight:700;font-size:14px}input,select{width:100%;padding:12px;border:1px solid #ccd5df;border-radius:10px;font-size:15px;margin-top:6px}
+button{border:0;border-radius:10px;padding:12px 15px;background:#17365d;color:#fff;font-weight:700;font-size:15px;cursor:pointer}
+.nav{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}.nav button{background:#e8eef5;color:#17365d}
+.stat{padding:17px;border-radius:14px;background:#eef4fb}.big{font-size:28px;font-weight:800}
+.muted{color:#667085}.hidden{display:none}.ok{color:#137333;font-weight:700}.danger{color:#b3261e;font-weight:700}
+.status{min-height:22px;margin:12px 0}.note{font-size:13px;color:#667085}
+@media(max-width:600px){.grid{grid-template-columns:1fr}.nav{grid-template-columns:1fr 1fr}header{font-size:20px}}
+</style>
+</head>
+<body>
+<header>🍲 Kitchen Management System</header>
+<div class="wrap">
+
+<section id="login" class="card">
+<h1>Admin Login</h1>
+<p class="note">Sign in with the Firebase Authentication email and password.</p>
+<label>Email</label>
+<input id="email" type="email" autocomplete="username" placeholder="Email">
+<br><br>
+<label>Password</label>
+<input id="password" type="password" autocomplete="current-password" placeholder="Password">
+<br><br>
+<button id="loginBtn">Login</button>
+<div id="loginMsg" class="status"></div>
+</section>
+
+<section id="app" class="hidden">
+<div class="nav">
+<button data-page="dashboard">Dashboard</button>
+<button data-page="meal">Meal Plan</button>
+<button data-page="staff">Attendance</button>
+<button data-page="stock">Stock</button>
+<button data-page="reports">Reports</button>
+<button id="logoutBtn">Logout</button>
+</div>
+
+<div id="dashboard" class="page card">
+<h2>Dashboard</h2>
+<div class="grid">
+<div class="stat"><div class="muted">Today's Meal People</div><div class="big" id="mealCount">0</div></div>
+<div class="stat"><div class="muted">Present Staff</div><div class="big" id="staffCount">0</div></div>
+<div class="stat"><div class="muted">Stock Items</div><div class="big" id="stockCount">0</div></div>
+<div class="stat"><div class="muted">Status</div><div class="big">ONLINE</div></div>
+</div>
+</div>
+
+<div id="meal" class="page card hidden">
+<h2>Meal Plan</h2>
+<div class="grid">
+<div><label>Date</label><input type="date" id="mealDate"></div>
+<div><label>Meal</label><select id="mealType"><option>Breakfast</option><option>Lunch</option><option>Dinner</option></select></div>
+<div><label>People Count</label><input type="number" id="people" value="100" min="0"></div>
+<div><label>Menu</label><input id="menu" placeholder="e.g. Rice, Chicken Curry"></div>
+</div><br>
+<button id="saveMeal">Save Meal Plan</button><div id="mealMsg" class="status"></div>
+</div>
+
+<div id="staff" class="page card hidden">
+<h2>Staff Attendance</h2>
+<div class="grid">
+<div><label>Date</label><input type="date" id="attDate"></div>
+<div><label>Staff Name</label><input id="staffName" placeholder="Name"></div>
+<div><label>Status</label><select id="status"><option>Present</option><option>Absent</option><option>Leave</option></select></div>
+<div><label>IN Time</label><input type="time" id="inTime"></div>
+<div><label>OUT Time</label><input type="time" id="outTime"></div>
+<div><label>Absent Reason</label><input id="reason" placeholder="If absent"></div>
+</div><br>
+<button id="saveAttendance">Save Attendance</button><div id="attMsg" class="status"></div>
+</div>
+
+<div id="stock" class="page card hidden">
+<h2>Stock</h2>
+<div class="grid">
+<div><label>Item</label><input id="stockItem" placeholder="Rice"></div>
+<div><label>Quantity</label><input type="number" id="stockQty" value="0" min="0"></div>
+<div><label>Unit</label><input id="stockUnit" value="kg"></div>
+<div><label>Minimum Stock</label><input type="number" id="minStock" value="0" min="0"></div>
+</div><br>
+<button id="saveStock">Save Stock</button><div id="stockMsg" class="status"></div>
+</div>
+
+<div id="reports" class="page card hidden">
+<h2>Reports</h2>
+<p id="reportText">Loading...</p>
+</div>
+</section>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+const firebaseConfig={
+  apiKey:"AIzaSyBdn-TU1rsM32t00hwSLNSdpt45vVFpGfs",
+  authDomain:"kitchen-management-project.firebaseapp.com",
+  projectId:"kitchen-management-project",
+  storageBucket:"kitchen-management-project.firebasestorage.app",
+  messagingSenderId:"232836412028",
+  appId:"1:232836412028:web:8e7cef2f0b95b942300ff9"
+};
+
+const app=initializeApp(firebaseConfig);
+const auth=getAuth(app);
+const db=getFirestore(app);
+const $=id=>document.getElementById(id);
+const today=new Date().toISOString().slice(0,10);
+$("mealDate").value=today;$("attDate").value=today;
+
+function setLoginMsg(text,cls="danger"){$("loginMsg").className="status "+cls;$("loginMsg").textContent=text}
+function setMsg(id,text,cls="ok"){$(id).className="status "+cls;$(id).textContent=text}
+
+async function checkAdmin(uid){
+  const snap=await getDoc(doc(db,"users",uid));
+  if(!snap.exists()) return false;
+  const d=snap.data();
+  return d.role==="admin" && d.active===true;
+}
+
+$("loginBtn").addEventListener("click",async()=>{
+  const email=$("email").value.trim(), password=$("password").value;
+  setLoginMsg("");
+  if(!email||!password){setLoginMsg("Email and password are required.");return}
+  $("loginBtn").disabled=true;
+  $("loginBtn").textContent="Signing in...";
+  try{
+    const cred=await signInWithEmailAndPassword(auth,email,password);
+    const ok=await checkAdmin(cred.user.uid);
+    if(!ok){
+      await signOut(auth);
+      setLoginMsg("Login succeeded, but this user is not configured as admin in Firestore. Check users/"+cred.user.uid+" → role=admin and active=true.");
+      return;
+    }
+  }catch(e){
+    console.error(e);
+    let msg=e?.message||"Login failed.";
+    if(e?.code==="auth/invalid-credential") msg="Invalid email/password. Firebase received the login request, but the credentials were rejected.";
+    if(e?.code==="auth/invalid-api-key") msg="Firebase API key is invalid. Check the Firebase web configuration.";
+    setLoginMsg(msg);
+  }finally{
+    $("loginBtn").disabled=false;
+    $("loginBtn").textContent="Login";
+  }
+});
+
+onAuthStateChanged(auth,async user=>{
+  if(!user){
+    $("login").classList.remove("hidden");$("app").classList.add("hidden");return;
+  }
+  try{
+    if(await checkAdmin(user.uid)){
+      $("login").classList.add("hidden");$("app").classList.remove("hidden");await refresh();
+    }else{
+      await signOut(auth);setLoginMsg("This account is authenticated but does not have admin access.");
+    }
+  }catch(e){
+    await signOut(auth);setLoginMsg("Could not read the admin profile from Firestore.");
+  }
+});
+
+$("logoutBtn").addEventListener("click",()=>signOut(auth));
+document.querySelectorAll("[data-page]").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".page").forEach(p=>p.classList.add("hidden"));
+  $(b.dataset.page).classList.remove("hidden");refresh();
+}));
+
+$("saveMeal").addEventListener("click",async()=>{
+  try{
+    await addDoc(collection(db,"mealPlans"),{
+      date:$("mealDate").value,meal:$("mealType").value,people:Number($("people").value||0),
+      menu:$("menu").value.trim(),createdBy:auth.currentUser.uid,createdAt:serverTimestamp()
+    });
+    setMsg("mealMsg","Meal plan saved.");$("menu").value="";await refresh();
+  }catch(e){setMsg("mealMsg","Save failed: "+e.message,"danger")}
+});
+
+$("saveAttendance").addEventListener("click",async()=>{
+  try{
+    await addDoc(collection(db,"attendance"),{
+      date:$("attDate").value,name:$("staffName").value.trim(),status:$("status").value,
+      inTime:$("inTime").value,outTime:$("outTime").value,reason:$("reason").value.trim(),
+      createdBy:auth.currentUser.uid,createdAt:serverTimestamp()
+    });
+    setMsg("attMsg","Attendance saved.");await refresh();
+  }catch(e){setMsg("attMsg","Save failed: "+e.message,"danger")}
+});
+
+$("saveStock").addEventListener("click",async()=>{
+  try{
+    await addDoc(collection(db,"stock"),{
+      item:$("stockItem").value.trim(),quantity:Number($("stockQty").value||0),
+      unit:$("stockUnit").value.trim(),minimum:Number($("minStock").value||0),
+      createdBy:auth.currentUser.uid,createdAt:serverTimestamp()
+    });
+    setMsg("stockMsg","Stock saved.");await refresh();
+  }catch(e){setMsg("stockMsg","Save failed: "+e.message,"danger")}
+});
+
+async function countCollection(name){
+  const s=await getDocs(collection(db,name));return s.size;
+}
+async function refresh(){
+  if(!auth.currentUser)return;
+  try{
+    const [m,a,s]=await Promise.all([getDocs(collection(db,"mealPlans")),getDocs(collection(db,"attendance")),getDocs(collection(db,"stock"))]);
+    let people=0,present=0;
+    m.forEach(x=>{const d=x.data();if(d.date===today)people+=Number(d.people||0)});
+    a.forEach(x=>{const d=x.data();if(d.date===today&&d.status==="Present")present++});
+    $("mealCount").textContent=people;$("staffCount").textContent=present;$("stockCount").textContent=s.size;
+    $("reportText").textContent=`Cloud data: ${m.size} meal plans, ${a.size} attendance records, ${s.size} stock items.`;
+  }catch(e){console.error(e);$("reportText").textContent="Report read failed: "+e.message}
+}
+</script>
+</body>
+</html>
