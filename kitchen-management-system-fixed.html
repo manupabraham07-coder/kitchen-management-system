@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kitchen Management System</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f3f6fa;color:#172033}
+header{background:#18365d;color:#fff;padding:22px 16px;text-align:center;font-size:26px;font-weight:700}
+main{max-width:720px;margin:38px auto;padding:0 18px}.card{background:#fff;border-radius:20px;padding:32px;box-shadow:0 8px 30px #00000012}
+h1{font-size:38px;margin:0 0 18px}p{color:#687384;font-size:18px}label{display:block;font-weight:700;font-size:18px;margin:22px 0 8px}
+input{width:100%;padding:17px;border:1px solid #d7dce3;border-radius:14px;font-size:18px}
+button{margin-top:26px;background:#18365d;color:white;border:0;border-radius:14px;padding:16px 26px;font-size:18px;font-weight:700}
+#msg{margin-top:20px;font-weight:600}.ok{color:#16834b}.err{color:#b3261e}
+.hidden{display:none}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:20px}
+.box{background:#f6f8fb;border-radius:14px;padding:20px;font-weight:700}
+@media(max-width:600px){h1{font-size:32px}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>🍲 Kitchen Management System</header>
+
+<main>
+<section id="loginCard" class="card">
+<h1>Admin Login</h1>
+<p>Sign in with the Firebase Authentication email and password.</p>
+
+<label>Email</label>
+<input id="email" type="email" autocomplete="username" placeholder="Email">
+
+<label>Password</label>
+<input id="password" type="password" autocomplete="current-password" placeholder="Password">
+
+<button id="loginBtn">Login</button>
+<div id="msg"></div>
+</section>
+
+<section id="appCard" class="card hidden">
+<h1>Dashboard</h1>
+<p id="welcome"></p>
+<div class="grid">
+<div class="box">🍽️ Meal Plan</div>
+<div class="box">👥 Attendance</div>
+<div class="box">📦 Stock</div>
+<div class="box">📊 Reports</div>
+</div>
+<button id="logoutBtn">Logout</button>
+</section>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+import {
+  getFirestore,
+  doc,
+  getDoc
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+/* EXACT Firebase Web App configuration */
+const firebaseConfig = {
+  apiKey: "AIzaSyBdn-TU1rsM32t00hwSLNSdpt45vVFpGfs",
+  authDomain: "kitchen-management-project.firebaseapp.com",
+  projectId: "kitchen-management-project",
+  storageBucket: "kitchen-management-project.firebasestorage.app",
+  messagingSenderId: "232836412028",
+  appId: "1:232836412028:web:8e7cef2f0b95b942300ff9"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const loginCard = document.getElementById("loginCard");
+const appCard = document.getElementById("appCard");
+const email = document.getElementById("email");
+const password = document.getElementById("password");
+const loginBtn = document.getElementById("loginBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+const msg = document.getElementById("msg");
+const welcome = document.getElementById("welcome");
+
+function showError(text){
+  msg.className = "err";
+  msg.textContent = text;
+}
+function showOk(text){
+  msg.className = "ok";
+  msg.textContent = text;
+}
+
+loginBtn.addEventListener("click", async () => {
+  msg.textContent = "";
+  if(!email.value.trim() || !password.value){
+    showError("Email and password enter ചെയ്യുക.");
+    return;
+  }
+
+  loginBtn.disabled = true;
+  loginBtn.textContent = "Checking...";
+
+  try {
+    const cred = await signInWithEmailAndPassword(
+      auth,
+      email.value.trim(),
+      password.value
+    );
+
+    const snap = await getDoc(doc(db, "users", cred.user.uid));
+
+    if(!snap.exists()){
+      await signOut(auth);
+      throw new Error("Admin access is not configured. Firestore users/" + cred.user.uid + " document ഇല്ല.");
+    }
+
+    const data = snap.data();
+    if(data.role !== "admin" || data.active !== true){
+      await signOut(auth);
+      throw new Error("ഈ account-ന് admin access ഇല്ല.");
+    }
+
+    showOk("Login successful.");
+    loginCard.classList.add("hidden");
+    appCard.classList.remove("hidden");
+    welcome.textContent = "Welcome, " + (data.name || cred.user.email) + "!";
+  } catch(e) {
+    console.error(e);
+    showError(e.message || "Login failed.");
+  } finally {
+    loginBtn.disabled = false;
+    loginBtn.textContent = "Login";
+  }
+});
+
+logoutBtn.addEventListener("click", async () => {
+  await signOut(auth);
+  appCard.classList.add("hidden");
+  loginCard.classList.remove("hidden");
+  password.value = "";
+});
+
+onAuthStateChanged(auth, async (user) => {
+  if(!user) return;
+  try {
+    const snap = await getDoc(doc(db, "users", user.uid));
+    if(snap.exists() && snap.data().role === "admin" && snap.data().active === true){
+      loginCard.classList.add("hidden");
+      appCard.classList.remove("hidden");
+      welcome.textContent = "Welcome, " + (snap.data().name || user.email) + "!";
+    }
+  } catch(e) {
+    console.error(e);
+  }
+});
+</script>
+</body>
+</html>
